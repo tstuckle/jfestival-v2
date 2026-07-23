@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:combined": "node scripts/build-combined.mjs",
     "start": "next start",
     "lint": "next lint"
   },

@@ -5,31 +5,55 @@
 const VOLUNTEER_APP_ORIGIN =
   process.env.VOLUNTEER_APP_ORIGIN ?? "https://zealous-desert-0f13fd40f.7.azurestaticapps.net";
 
+// Two ways to ship this app, from one config:
+//
+//   default (Vercel)  -- the volunteer app stays on its own Azure Static Web App
+//                        and is proxied in at /volunteer by rewrites().
+//   STATIC_EXPORT=1   -- both apps are built and deployed SIDE BY SIDE onto a
+//                        single Azure Static Web App, so /volunteer is just a
+//                        folder next to this app's own files. No proxy needed --
+//                        and rewrites() doesn't exist in export mode anyway.
+//
+// Every route here is already statically prerendered, so exporting costs nothing.
+// See scripts/build-combined.mjs.
+const STATIC_EXPORT = process.env.STATIC_EXPORT === "1";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
-  // Next normally 308s "/volunteer/" -> "/volunteer". The volunteer app is a PWA
-  // whose manifest scope and service-worker scope are both "/volunteer/", so that
-  // redirect would land every launch outside its own scope: it opens in a browser
-  // tab instead of standalone, and the SW doesn't control the start URL (no
-  // offline start). Skipping the redirect lets the rewrite below serve the
-  // trailing-slash URL directly. Next still serves both forms of every other route.
-  skipTrailingSlashRedirect: true,
-  async rewrites() {
-    return [
-      { source: "/volunteer", destination: `${VOLUNTEER_APP_ORIGIN}/volunteer/` },
-      { source: "/volunteer/:path*", destination: `${VOLUNTEER_APP_ORIGIN}/volunteer/:path*` },
-    ];
-  },
   images: {
+    // Export mode has no image optimizer at runtime.
+    unoptimized: STATIC_EXPORT,
     remotePatterns: [
       { protocol: "https", hostname: "d2xsxph8kpxj0f.cloudfront.net" },
       { protocol: "https", hostname: "www.jesusfestival.ca" },
       { protocol: "https", hostname: "jesusfestival.ca" },
     ],
   },
+  ...(STATIC_EXPORT
+    ? {
+        output: "export",
+        // Emit out/admin/index.html rather than out/admin.html, so Static Web
+        // Apps serves every route as a folder default document with no rules.
+        trailingSlash: true,
+      }
+    : {
+        // Next normally 308s "/volunteer/" -> "/volunteer". The volunteer app is a PWA
+        // whose manifest scope and service-worker scope are both "/volunteer/", so that
+        // redirect would land every launch outside its own scope: it opens in a browser
+        // tab instead of standalone, and the SW doesn't control the start URL (no
+        // offline start). Skipping the redirect lets the rewrite below serve the
+        // trailing-slash URL directly. Next still serves both forms of every other route.
+        skipTrailingSlashRedirect: true,
+        async rewrites() {
+          return [
+            { source: "/volunteer", destination: `${VOLUNTEER_APP_ORIGIN}/volunteer/` },
+            { source: "/volunteer/:path*", destination: `${VOLUNTEER_APP_ORIGIN}/volunteer/:path*` },
+          ];
+        },
+      }),
 };
 
 export default nextConfig;
